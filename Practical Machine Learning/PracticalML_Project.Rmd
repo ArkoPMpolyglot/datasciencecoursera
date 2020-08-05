@@ -1,0 +1,108 @@
+---
+title: "Practical Machine Learning Project"
+author: "AP Madhu"
+date: "8/3/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Abstract
+
+This analysis corresponds to the Project Assignment for the Practical Machine Learning course of the Johns Hopkins Bloomberg School of Public Health Data Science Specialization at Coursera.
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively.
+
+
+These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks.
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+In this project, the goal is: using data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants, predict the manner in which they did the exercises. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways: A - the correct way and B, C, D e E, four different wrong ways of do the exercise. This is the “classe” variable in the training set. It will be select any of the other variables to predict with.
+More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset) and if you use the document you create for this class, for any purpose, please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+The training and test data for this project are available in this two url’s:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+#Data Processing
+
+```{r ,echo=TRUE}
+library(caret); library(rattle); library(rpart); library(rpart.plot)
+library(randomForest); library(corrplot)
+#Load the imported data from local 
+trainRead<-read.csv("pml-training.csv", na.strings=c("NA","#DIV/0!", ""))  
+testRead<-read.csv("pml-testing.csv", na.strings=c("NA","#DIV/0!", ""))
+dim(trainRead);dim(testRead)
+
+```
+`
+```{r,echo=TRUE}
+#WE remove columns having no information
+trainClean <- trainRead[,colSums(is.na(trainRead))==0]
+testClean <- testRead[,colSums(is.na(testRead))==0]
+dim(trainClean);dim(testClean)
+```
+```{r,echo=TRUE}
+#Investigating the data we can see that the seven first columns have a sequencial number (the first)
+#and variations of the timestamp that we are not using for this analysis so we will eliminate those columns remaining 53
+trainOK<-trainClean[,-c(1:7)]
+testOK<-testClean[,-c(1:7)]
+dim(trainOK);dim(testOK)
+```
+WE do a plot to see correlation between the variables
+```{r,echo=TRUE}
+exerCorrmatrix<-cor(trainOK[sapply(trainOK, is.numeric)])  
+#png(file="C:/Coursera/08_Practical_Machine_learning/corrpng.png", res=96, width=1000, height=1000)  
+corrplot(exerCorrmatrix,order="FPC", method="circle", tl.cex=0.45, tl.col="black", number.cex=0.25)  
+title("Correlation Matrix of the variables used", line = 1)
+```
+
+#Data Partitioning 
+
+```{r,echo=TRUE}
+inTrain<-createDataPartition(trainOK$classe, p=3/4, list=FALSE)
+train<-trainOK[inTrain,]
+valid<-trainOK[-inTrain,]  
+dim(train); dim(valid)
+```
+##Constructing Model with Cross validation
+
+#Decision Tree Model and Prediction
+```{r,echo=TRUE}
+library(rattle)
+DT_model<- train(classe ~. , data=train, method= "rpart")
+fancyRpartPlot(DT_model$finalModel)
+```
+We will use this Decision tree model to see how well it does on Validation dataset
+
+```{r,echo=TRUE}
+set.seed(21243)
+DTree_prediction <- predict(DT_model,valid)
+confusionMatrix(factor(DTree_prediction), factor(valid$classe))
+```
+The Accuracy is 54% which is not that good
+
+#Random Forest Model and Prediction
+```{r,echo=TRUE}
+set.seed(2345)
+RF_model <- train(classe~.,data=train,method="rf",ntree=100)
+RF_prediction <- predict(RF_model,newdata=valid)
+confusionMatrix(factor(RF_prediction),valid$classe)
+```
+
+#Gradient Boosting Model and Prediction
+```{r,echo=TRUE}
+set.seed(25422)
+GB_Model <- train(classe~.,data=train,method="gbm",verbose=FALSE)
+GB_Prediction <- predict(GB_Model,newdata=valid)
+confusionMatrix(factor(GB_Prediction),factor(valid$classe))
+```
+
+We see Random Forest model has better accuracy so we use it to do predictions on our testing data
+
+##Predictions on Test Data
+We fit the randomforest model on the testing data
+```{r,echo=TRUE}
+prediction_test<- predict(RF_model, testOK)
+prediction_test
+```
+
